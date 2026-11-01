@@ -33,6 +33,16 @@ jobs:
           ref: main
           fetch-depth: 0
 
+      - name: Check sync token
+        env:
+          SYNC_TOKEN: ${{ secrets.UPSTREAM_SYNC_TOKEN }}
+        run: |
+          if [[ -z "${SYNC_TOKEN}" ]]; then
+            echo "::warning title=UPSTREAM_SYNC_TOKEN 未配置::当前使用 GITHUB_TOKEN 同步。若上游改动了 .github/workflows/ 下的文件，GitHub 会拒绝推送（refusing to allow a GitHub App to create or update workflow ... without 'workflows' permission）。请在仓库 Settings > Secrets and variables > Actions 中配置 UPSTREAM_SYNC_TOKEN（细粒度 PAT，需 Contents: Read and write + Workflows: Read and write；经典 PAT 需 repo + workflow）。"
+          else
+            echo "UPSTREAM_SYNC_TOKEN 已配置，同步将使用该 PAT 推送。"
+          fi
+
       - name: Check breaking update policy
         id: breaking_guard
         env:
@@ -50,7 +60,7 @@ jobs:
           upstream_sync_repo: MarSeventh/CloudFlare-ImgBed
           upstream_sync_branch: main
           target_sync_branch: main
-          target_repo_token: ${{ secrets.GITHUB_TOKEN }}
+          target_repo_token: ${{ secrets.UPSTREAM_SYNC_TOKEN || secrets.GITHUB_TOKEN }}
           test_mode: false
 
       - name: Complete breaking update notices
@@ -75,10 +85,10 @@ jobs:
             echo
             echo "The upstream synchronization step could not be completed. If the upstream workflow files changed recently, GitHub may pause automatic synchronization that includes workflow changes. The issue may also be related to Actions or synchronization permissions in this fork."
             echo
-            echo "建议先在 GitHub 页面手动执行一次 **Sync fork**，确认 Actions 具有读写权限后，再重新运行本工作流。"
+            echo "常见原因：`UPSTREAM_SYNC_TOKEN` 未配置或已过期，导致推送包含 workflow 文件变更的提交时被 GitHub 拒绝（GitHub App token 缺少 workflows 权限）。请在 Settings > Secrets and variables > Actions 中配置具备 Contents + Workflows 读写权限的个人访问令牌，然后重新运行本工作流。"
             echo
-            echo "Please manually use **Sync fork** on GitHub, confirm that Actions has read and write permissions, and then rerun this workflow."
+            echo "Common cause: `UPSTREAM_SYNC_TOKEN` is missing or expired, so GitHub rejects the push when it contains workflow file changes (the GitHub App token lacks workflows permission). Configure a personal access token with Contents and Workflows read/write in Settings > Secrets and variables > Actions, then rerun this workflow."
           } >> "$GITHUB_STEP_SUMMARY"
-          echo "[Error] 上游同步未能完成。若上游近期修改了 workflow 文件，请先在 GitHub 页面手动执行一次 Sync Fork，然后重新运行本工作流。"
+          echo "[Error] 上游同步未能完成。请检查 UPSTREAM_SYNC_TOKEN 是否存在且具备 Contents + Workflows 读写权限后再重跑。"
           echo "[Error] The upstream sync could not be completed. If the upstream workflow files changed recently, manually run Sync Fork on GitHub and then rerun this workflow."
           exit 1
